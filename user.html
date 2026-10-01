@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>MovieBox</title>
+
+<!-- Font Awesome -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+<style>
+:root{
+ --bg:#141414;--bg2:#1f1f1f;--card:#2a2a2a;
+ --accent:#e50914;--text:#e5e5e5;--text2:#999;
+}
+.light{
+ --bg:#f4f4f4;--bg2:#fff;--card:#f0f0f0;
+ --text:#111;--text2:#555;
+}
+*{margin:0;padding:0;box-sizing:border-box;font-family:Arial}
+body{
+    background:var(--bg);
+    color:var(--text);
+    padding-bottom:130px;
+}
+
+/* ===== HEADER ===== */
+header{
+ position:sticky;top:0;z-index:10;
+ background:var(--bg2);padding:12px;
+ display:flex;align-items:center;gap:10px
+}
+header h1{font-size:18px;white-space:nowrap}
+header i{color:var(--accent)}
+.search-box{flex:1;position:relative}
+.search-box input{
+ width:100%;padding:10px 36px 10px 12px;
+ border-radius:20px;border:none;
+ background:var(--card);color:var(--text)
+}
+.search-box i{
+ position:absolute;right:12px;top:50%;
+ transform:translateY(-50%);color:var(--text2)
+}
+
+/* ===== CAROUSEL ===== */
+.carousel{
+ perspective:1200px;
+ height:320px;margin:10px auto;
+ position:relative;overflow:hidden
+}
+.carousel-inner{
+ width:100%;height:100%;
+ position:absolute;transform-style:preserve-3d;
+ transition:transform 1s
+}
+.carousel-item{
+ position:absolute;left:50%;top:50%;
+ transform-style:preserve-3d;
+ transition:.5s;
+ /* FIX: center the item on its own dimensions */
+ margin-left:-100px;
+ margin-top:-150px;
+}
+.carousel-item img{
+ width:200px;height:300px;
+ object-fit:cover;border-radius:10px
+}
+.carousel-title{
+ position:absolute;bottom:10px;
+ left:50%;transform:translateX(-50%);
+ background:rgba(0,0,0,.6);
+ padding:6px 10px;border-radius:6px;
+ font-size:13px
+}
+
+/* ===== GENRES ===== */
+.genres{
+ display:flex;gap:8px;
+ overflow-x:auto;padding:10px
+}
+.genres::-webkit-scrollbar{display:none}
+.genre{
+ padding:6px 12px;border-radius:20px;
+ background:var(--card);font-size:13px;
+ cursor:pointer;white-space:nowrap
+}
+.genre.active{background:var(--accent)}
+
+/* ===== GRID ===== */
+.grid{
+ display:grid;gap:12px;padding:12px
+}
+@media(min-width:768px){.grid{grid-template-columns:repeat(4,1fr)}}
+@media(max-width:767px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media(min-width:1100px){.grid{grid-template-columns:repeat(5,1fr)}}
+.movie{
+ cursor:pointer
+}
+.movie img{
+ width:100%;aspect-ratio:2/3;
+ object-fit:cover;border-radius:8px
+}
+.movie h4{font-size:14px;margin-top:4px}
+
+/* ===== MODAL ===== */
+.modal{
+ position:fixed;inset:0;
+ background:rgba(0,0,0,.9);
+ display:none;z-index:20;
+ overflow:auto
+}
+.modal-content{
+ max-width:800px;margin:20px auto;
+ padding:20px
+}
+.close{
+ position:fixed;top:15px;right:15px;
+ font-size:22px;cursor:pointer
+}
+.player{
+ position:relative;padding-top:56.25%;
+ display:none;margin-bottom:12px
+}
+.player iframe{
+ position:absolute;inset:0;
+ width:100%;height:100%
+}
+.btn{
+ padding:10px;border-radius:6px;
+ border:none;margin:6px 4px;cursor:pointer
+}
+.blue{background:#3498db;color:#fff}
+.green{background:#27ae60;color:#fff}
+.gray{background:#555;color:#fff}
+
+/* ===== STARS ===== */
+.stars i{color:gold;cursor:pointer}
+
+/* ===== BOTTOM NAV ===== */
+nav{
+ position:fixed;bottom:0;left:0;right:0;
+ background:var(--bg2);
+ display:flex;justify-content:space-around;
+ padding:10px 0
+}
+nav i{font-size:18px}
+nav .active{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<header>
+ <h1><i class="fa fa-film"></i> MovieBox</h1>
+ <div class="search-box">
+  <input placeholder="Search movies..." oninput="searchMovies(this.value)">
+  <i class="fa fa-search"></i>
+ </div>
+</header>
+
+<div class="carousel">
+ <div class="carousel-inner" id="carousel"></div>
+</div>
+
+<div class="genres" id="genres"></div>
+<div class="grid" id="movies"></div>
+
+<!-- MOVIE MODAL -->
+<div class="modal" id="modal">
+ <div class="close" onclick="closeModal()"><i class="fa fa-times"></i></div>
+ <div class="modal-content">
+  <div class="player" id="player"></div>
+  <img id="mPoster" style="width:200px;border-radius:10px">
+  <h2 id="mTitle"></h2>
+  <p id="mGenre"></p>
+  <div class="stars" id="stars"></div>
+  <p id="mDesc"></p>
+  <button class="btn blue" onclick="playMovie()">Play Now</button>
+  <button class="btn green" id="downloadBtn">Download</button>
+  <button class="btn gray" onclick="toggleFav()">❤ Favorite</button>
+  <button class="btn gray" onclick="report()">🚩 Report</button>
+ </div>
+</div>
+
+<nav>
+ <i class="fa fa-home active"></i>
+ <i class="fa fa-search" onclick="document.querySelector('.search-box input').focus()"></i>
+ <i class="fa fa-heart" onclick="showFavs()"></i>
+ <i class="fa fa-gear" onclick="toggleTheme()"></i>
+</nav>
+
+<!-- Bottom Banner Ad -->
+<div id="bottomAd" style="
+position:fixed;
+bottom:60px;
+left:0;
+width:100%;
+display:flex;
+justify-content:center;
+background:#111;
+padding:5px 0;
+z-index:9998;
+">
+<script>
+atOptions = {
+    'key' : '5a14177a9a0346852021310cb3d8684b',
+    'format' : 'iframe',
+    'height' : 50,
+    'width' : 320,
+    'params' : {}
+};
+</script>
+<script src="https://www.highperformanceformat.com/5a14177a9a0346852021310cb3d8684b/invoke.js"></script>
+</div>
+
+<script>
+// ============ FIREBASE ============
+const firebaseConfig = {
+  apiKey: "AIzaSyBrL158IVNaxAuCaNexSaff5irUV5Ta_9Q",
+  authDomain: "movie-hd-79779.firebaseapp.com",
+  databaseURL: "https://movie-hd-79779-default-rtdb.firebaseio.com",
+  projectId: "movie-hd-79779",
+  storageBucket: "movie-hd-79779.firebasestorage.app",
+  messagingSenderId: "389103673422",
+  appId: "1:389103673422:web:4b4735938cbeac1b6be31f"
+};
+firebase.initializeApp(firebaseConfig);
+const db  = firebase.database();
+const auth = firebase.auth();
+
+// ============ GLOBAL ============
+let allMovies = [], current = null, carouselIndex = 0;
+let favs = JSON.parse(localStorage.getItem("favorites") || "[]");
+
+// FIX: store the carousel interval so we can clear it on re-render
+let carouselTimer = null;
+
+// ============ LOAD MOVIES ============
+db.ref("movies").on("value", s => {
+  allMovies = [];
+  s.forEach(x => allMovies.push({ id: x.key, ...x.val() }));
+  renderCarousel();
+  renderGenres();
+  renderMovies(allMovies);
+});
+
+// ============ CAROUSEL ============
+function renderCarousel() {
+  const c = document.getElementById("carousel");
+  c.innerHTML = "";
+
+  // FIX: guard against empty list (avoids 360/0 = Infinity)
+  const list = allMovies.slice(-5);
+  if (!list.length) return;
+
+  // FIX: reset index so re-render starts from angle 0
+  carouselIndex = 0;
+
+  list.forEach((m, i) => {
+    const angle = i * (360 / list.length);
+    const item = document.createElement("div");
+    item.className = "carousel-item";
+    item.style.transform = `rotateY(${angle}deg) translateZ(400px)`;
+
+    const img = document.createElement("img");
+    img.src = m.poster;
+    img.addEventListener("click", () => openModal(m.id));
+
+    const title = document.createElement("div");
+    title.className = "carousel-title";
+    title.textContent = m.title;
+
+    item.appendChild(img);
+    item.appendChild(title);
+    c.appendChild(item);
+  });
+
+  // FIX: clear any existing interval before creating a new one
+  if (carouselTimer) clearInterval(carouselTimer);
+  carouselTimer = setInterval(() => {
+    carouselIndex += 360 / list.length;
+    c.style.transform = `rotateY(-${carouselIndex}deg)`;
+  }, 4000);
+}
+
+// ============ GENRES ============
+function renderGenres() {
+  const g = document.getElementById("genres");
+  const genres = ["All", ...new Set(allMovies.map(m => m.genre))];
+  g.innerHTML = "";
+  genres.forEach(x => {
+    const el = document.createElement("div");
+    el.className = "genre";
+    el.textContent = x;
+    // FIX: use addEventListener + data attribute instead of inline onclick
+    // so genre names with apostrophes or quotes don't break the handler
+    el.dataset.genre = x;
+    el.addEventListener("click", () => filterGenre(el.dataset.genre, el));
+    g.appendChild(el);
+  });
+  g.firstChild.classList.add("active");
+}
+
+function filterGenre(g, el) {
+  document.querySelectorAll(".genre").forEach(x => x.classList.remove("active"));
+  el.classList.add("active");
+  renderMovies(g === "All" ? allMovies : allMovies.filter(m => m.genre === g));
+}
+
+// ============ GRID ============
+function renderMovies(list) {
+  const m = document.getElementById("movies");
+  m.innerHTML = "";
+  if (!list.length) { m.innerHTML = "<p>No movies found</p>"; return; }
+  list.forEach(x => {
+    const card = document.createElement("div");
+    card.className = "movie";
+    card.addEventListener("click", () => openModal(x.id));
+    card.innerHTML = `<img src="${x.poster}"><h4>${x.title}</h4>`;
+    m.appendChild(card);
+  });
+}
+
+function searchMovies(q) {
+  q = q.toLowerCase();
+  renderMovies(allMovies.filter(m => m.title.toLowerCase().includes(q)));
+}
+
+// ============ MODAL ============
+function openModal(id) {
+  current = allMovies.find(m => m.id === id);
+  if (!current) return;
+  modal.style.display = "block";
+  player.style.display = "none";
+  player.innerHTML = "";
+  mPoster.src = current.poster;
+  mTitle.innerText = current.title;
+  mGenre.innerText = current.genre;
+  mDesc.innerText = current.description;
+  downloadBtn.onclick = () => window.open(current.downloadUrl, "_blank");
+  renderStars();
+}
+function closeModal() { modal.style.display = "none"; }
+
+// ============ VIDEO ============
+function convertToEmbedUrl(url) {
+  if (url.includes("youtu")) {
+    const id = url.split("v=")[1]?.split("&")[0] || url.split("/").pop();
+    return `https://www.youtube.com/embed/${id}?autoplay=1`;
+  }
+  return url;
+}
+function playMovie() {
+  player.style.display = "block";
+  player.innerHTML = `<iframe src="${convertToEmbedUrl(current.playUrl)}" allowfullscreen></iframe>`;
+}
+
+// ============ STARS ============
+function renderStars() {
+  stars.innerHTML = "";
+  const avg = current.ratingCount ? Math.round(current.ratingTotal / current.ratingCount) : 0;
+  for (let i = 1; i <= 5; i++) {
+    const star = document.createElement("i");
+    star.className = `fa ${i <= avg ? "fa-star" : "fa-star-o"}`;
+    star.addEventListener("click", () => rate(i));
+    stars.appendChild(star);
+  }
+}
+
+function rate(v) {
+  if (!auth.currentUser) return alert("Login required");
+  db.ref("movies/" + current.id).transaction(m => {
+    // FIX: Firebase passes null on the first transaction call — guard against it
+    if (m === null) return m;
+    m.ratingTotal = (m.ratingTotal || 0) + v;
+    m.ratingCount = (m.ratingCount || 0) + 1;
+    return m;
+  });
+}
+
+// ============ FAVORITES ============
+function toggleFav() {
+  if (favs.includes(current.id))
+    favs = favs.filter(x => x !== current.id);
+  else
+    favs.push(current.id);
+  localStorage.setItem("favorites", JSON.stringify(favs));
+}
+function showFavs() {
+  renderMovies(allMovies.filter(m => favs.includes(m.id)));
+}
+
+// ============ REPORT ============
+function report() {
+  db.ref("reports").push({
+    movieId: current.id,
+    movieTitle: current.title,
+    userId: auth.currentUser ? auth.currentUser.uid : "Anonymous",
+    timestamp: Date.now()
+  });
+  alert("Reported");
+}
+
+// ============ THEME ============
+function toggleTheme() {
+  document.body.classList.toggle("light");
+  localStorage.setItem("theme",
+    document.body.classList.contains("light") ? "light" : "dark");
+}
+if (localStorage.getItem("theme") === "light")
+  document.body.classList.add("light");
+</script>
+</body>
+</html>

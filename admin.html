@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>MovieBox Admin Panel</title>
+
+<!-- Font Awesome -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+<style>
+:root{
+    --bg:#141414;
+    --bg2:#1f1f1f;
+    --card:#2a2a2a;
+    --accent:#e50914;
+    --text:#e5e5e5;
+    --text2:#999;
+}
+.light{
+    --bg:#f4f4f4;
+    --bg2:#ffffff;
+    --card:#f0f0f0;
+    --text:#111;
+    --text2:#555;
+}
+*{box-sizing:border-box;margin:0;padding:0;font-family:Arial,Helvetica,sans-serif}
+body{background:var(--bg);color:var(--text);min-height:100vh}
+
+/* ===== HEADER ===== */
+header{
+    position:sticky;top:0;z-index:10;
+    background:var(--bg2);
+    display:flex;align-items:center;justify-content:space-between;
+    padding:14px 20px;
+    box-shadow:0 2px 10px rgba(0,0,0,.4)
+}
+header h1{font-size:20px}
+header h1 i{color:var(--accent)}
+.header-actions button{
+    background:none;border:none;color:var(--text);
+    font-size:18px;margin-left:14px;cursor:pointer
+}
+
+/* ===== LAYOUT ===== */
+.container{padding:20px;max-width:1300px;margin:auto}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+@media(max-width:900px){.grid{grid-template-columns:1fr}}
+
+/* ===== CARDS ===== */
+.card{background:var(--card);padding:16px;border-radius:8px}
+.card h2{margin-bottom:14px;font-size:18px}
+
+/* ===== FORMS ===== */
+label{font-size:13px;color:var(--text2)}
+input,select,textarea{
+    width:100%;padding:10px;margin-top:6px;
+    background:var(--bg2);border:1px solid #333;
+    color:var(--text);border-radius:6px
+}
+textarea{min-height:100px;resize:vertical}
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:600px){.form-grid{grid-template-columns:1fr}}
+
+button.primary{
+    background:var(--accent);border:none;
+    color:#fff;padding:10px 16px;
+    border-radius:6px;cursor:pointer
+}
+button.secondary{
+    background:#555;border:none;color:#fff;
+    padding:10px 16px;border-radius:6px;cursor:pointer
+}
+button.danger{
+    background:#c0392b;border:none;color:#fff;
+    padding:10px 16px;border-radius:6px;cursor:pointer
+}
+.actions{display:flex;gap:10px;margin-top:12px}
+
+/* ===== MOVIE LIST ===== */
+.search{
+    width:100%;padding:10px;margin-bottom:14px;
+    border-radius:6px;border:1px solid #333;
+    background:var(--bg2);color:var(--text)
+}
+.movie-card{
+    display:flex;gap:12px;
+    padding:12px;border-radius:8px;
+    background:var(--bg2);
+    margin-bottom:12px;
+    transition:.2s
+}
+.movie-card:hover{transform:translateY(-3px)}
+.movie-card img{
+    width:80px;height:120px;
+    object-fit:cover;border-radius:6px;
+    flex-shrink:0
+}
+.movie-info{flex:1;min-width:0}
+.badge{
+    display:inline-block;font-size:11px;
+    padding:2px 6px;border-radius:4px;margin-right:4px
+}
+.blue{background:#3498db}
+.green{background:#27ae60}
+.red{background:#e74c3c}
+.card-actions{display:flex;gap:8px;margin-top:8px}
+
+/* ===== LOGIN ===== */
+#loginBox{
+    position:fixed;inset:0;
+    display:flex;align-items:center;justify-content:center;
+    background:#000;z-index:100
+}
+.login-card{
+    background:var(--card);
+    padding:30px;border-radius:10px;
+    width:100%;max-width:360px
+}
+.login-card h2{text-align:center;margin-bottom:20px}
+
+/* ===== REPORTS ===== */
+.report{
+    background:var(--bg2);
+    padding:10px;border-radius:6px;
+    margin-bottom:10px
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginBox">
+    <div class="login-card">
+        <h2><i class="fa fa-film"></i> Admin Login</h2>
+        <input id="loginEmail" type="email" placeholder="Email">
+        <input id="loginPassword" type="password" placeholder="Password" style="margin-top:10px">
+        <button class="primary" style="width:100%;margin-top:16px" onclick="login()">Login</button>
+        <p id="loginError" style="color:red;margin-top:10px"></p>
+    </div>
+</div>
+
+<header>
+    <h1><i class="fa fa-film"></i> MovieBox Admin</h1>
+    <div class="header-actions">
+        <button onclick="toggleTheme()"><i class="fa fa-moon"></i></button>
+        <button onclick="logout()"><i class="fa fa-sign-out-alt"></i></button>
+    </div>
+</header>
+
+<div class="container">
+<div class="grid">
+
+<!-- ADD / EDIT FORM -->
+<div class="card">
+    <h2 id="formTitle">Add Movie</h2>
+    <div class="form-grid">
+        <div>
+            <label>Movie Title</label>
+            <!-- FIXED: was id="title" which conflicts with window.title (document.title) -->
+            <input id="movieTitle">
+        </div>
+        <div>
+            <label>Genre</label>
+            <select id="movieGenre">
+                <option>Action</option>
+                <option>Comedy</option>
+                <option>Drama</option>
+                <option>Horror</option>
+                <option>Sci-Fi</option>
+                <option>Romance</option>
+                <option>Thriller</option>
+                <option>Animation</option>
+                <option>Adventure</option>
+                <option>Fantasy</option>
+            </select>
+        </div>
+        <div>
+            <label>Poster Image URL</label>
+            <input id="moviePoster">
+        </div>
+        <div>
+            <label>Play Online URL</label>
+            <input id="moviePlayUrl">
+        </div>
+        <div>
+            <label>Download URL</label>
+            <input id="movieDownloadUrl">
+        </div>
+    </div>
+    <div style="margin-top:10px">
+        <label>Description</label>
+        <textarea id="movieDescription"></textarea>
+    </div>
+    <div class="actions">
+        <button class="primary" onclick="saveMovie()">Add Movie</button>
+        <button class="secondary" id="cancelEdit" onclick="resetForm()" style="display:none">Cancel</button>
+    </div>
+    <p id="formMsg" style="margin-top:8px;font-size:13px"></p>
+</div>
+
+<!-- MOVIES LIST -->
+<div class="card">
+    <h2>Manage Movies</h2>
+    <input class="search" placeholder="Search movie..." oninput="filterMovies(this.value)">
+    <div id="movieList"></div>
+</div>
+
+</div>
+
+<!-- REPORTS -->
+<div class="card" style="margin-top:20px">
+    <h2>Broken Link Reports</h2>
+    <div id="reportsList"></div>
+</div>
+
+</div>
+
+<script>
+// ================= FIREBASE =================
+const firebaseConfig = {
+    apiKey: "AIzaSyBrL158IVNaxAuCaNexSaff5irUV5Ta_9Q",
+    authDomain: "movie-hd-79779.firebaseapp.com",
+    databaseURL: "https://movie-hd-79779-default-rtdb.firebaseio.com",
+    projectId: "movie-hd-79779",
+    storageBucket: "movie-hd-79779.firebasestorage.app",
+    messagingSenderId: "389103673422",
+    appId: "1:389103673422:web:4b4735938cbeac1b6be31f"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db   = firebase.database();
+
+// ================= GLOBAL =================
+let editId = null;
+let movies = [];
+
+// ================= ELEMENT REFS =================
+// Always use getElementById — avoids all implicit window.* collisions
+const elMovieTitle    = () => document.getElementById("movieTitle");
+const elMovieGenre    = () => document.getElementById("movieGenre");
+const elMoviePoster   = () => document.getElementById("moviePoster");
+const elMoviePlayUrl  = () => document.getElementById("moviePlayUrl");
+const elMovieDownload = () => document.getElementById("movieDownloadUrl");
+const elMovieDesc     = () => document.getElementById("movieDescription");
+const elFormTitle     = () => document.getElementById("formTitle");
+const elFormMsg       = () => document.getElementById("formMsg");
+const elCancelEdit    = () => document.getElementById("cancelEdit");
+const elLoginBox      = () => document.getElementById("loginBox");
+const elLoginEmail    = () => document.getElementById("loginEmail");
+const elLoginPassword = () => document.getElementById("loginPassword");
+const elLoginError    = () => document.getElementById("loginError");
+
+// ================= AUTH =================
+auth.onAuthStateChanged(user => {
+    elLoginBox().style.display = user ? "none" : "flex";
+    if (user) {
+        loadMovies();
+        loadReports();
+    }
+});
+
+function login() {
+    elLoginError().innerText = "";
+    auth.signInWithEmailAndPassword(
+        elLoginEmail().value.trim(),
+        elLoginPassword().value
+    ).catch(e => elLoginError().innerText = e.message);
+}
+
+function logout() { auth.signOut(); }
+
+// ================= MOVIES =================
+function loadMovies() {
+    db.ref("movies").on("value", snap => {
+        movies = [];
+        snap.forEach(s => movies.push({ id: s.key, ...s.val() }));
+        renderMovies(movies);
+    });
+}
+
+function renderMovies(list) {
+    const container = document.getElementById("movieList");
+    if (!list.length) {
+        container.innerHTML = "<p>No movies found</p>";
+        return;
+    }
+    // FIXED: build full HTML string first, assign once — no innerHTML += loop
+    container.innerHTML = list.map(m => `
+        <div class="movie-card">
+            <img src="${m.poster}" onerror="this.src='https://via.placeholder.com/80x120'">
+            <div class="movie-info">
+                <h4>${m.title}</h4>
+                <span class="badge blue">${m.genre}</span>
+                <span class="badge green"><i class="fa fa-play"></i></span>
+                <span class="badge green"><i class="fa fa-download"></i></span>
+                <p style="font-size:13px;color:var(--text2);margin:6px 0">
+                    ${(m.description || "").substring(0, 100)}...
+                </p>
+                <div class="card-actions">
+                    <button class="secondary" data-action="edit"   data-id="${m.id}">Edit</button>
+                    <button class="danger"    data-action="delete" data-id="${m.id}">Delete</button>
+                </div>
+            </div>
+        </div>
+    `).join("");
+}
+
+// FIXED: single delegated listener — no inline onclick with interpolated strings
+document.getElementById("movieList").addEventListener("click", e => {
+    const btn = e.target.closest("button[data-action]");
+    if (!btn) return;
+    const { action, id } = btn.dataset;
+    if (action === "edit")   editMovie(id);
+    if (action === "delete") deleteMovie(id);
+});
+
+function saveMovie() {
+    const titleVal    = elMovieTitle().value.trim();
+    const posterVal   = elMoviePoster().value.trim();
+    const playVal     = elMoviePlayUrl().value.trim();
+    const downloadVal = elMovieDownload().value.trim();
+    const descVal     = elMovieDesc().value.trim();
+
+    if (!titleVal || !posterVal || !playVal || !downloadVal || !descVal) {
+        elFormMsg().style.color = "red";
+        elFormMsg().innerText   = "All fields are required.";
+        return;
+    }
+
+    const data = {
+        title:       titleVal,
+        genre:       elMovieGenre().value,
+        poster:      posterVal,
+        playUrl:     playVal,
+        downloadUrl: downloadVal,
+        description: descVal,
+        timestamp:   Date.now()
+    };
+
+    if (editId) {
+        // FIXED: do NOT send ratingTotal/ratingCount when editing —
+        // original code always sent 0, wiping all user ratings on every save
+        db.ref("movies/" + editId).update(data);
+    } else {
+        // Only set ratings to 0 for brand-new movies
+        data.ratingTotal = 0;
+        data.ratingCount = 0;
+        db.ref("movies").push(data);
+    }
+
+    resetForm();
+}
+
+function editMovie(id) {
+    const m = movies.find(x => x.id === id);
+    if (!m) return;
+    editId = id;
+    elFormTitle().innerText      = "Update Movie";
+    elCancelEdit().style.display = "inline-block";
+    elMovieTitle().value    = m.title;
+    elMovieGenre().value    = m.genre;
+    elMoviePoster().value   = m.poster;
+    elMoviePlayUrl().value  = m.playUrl;
+    elMovieDownload().value = m.downloadUrl;
+    elMovieDesc().value     = m.description;
+    document.getElementById("formTitle").scrollIntoView({ behavior: "smooth" });
+}
+
+function resetForm() {
+    editId = null;
+    elFormTitle().innerText      = "Add Movie";
+    elCancelEdit().style.display = "none";
+    elMovieTitle().value    = "";
+    elMovieGenre().value    = "Action";
+    elMoviePoster().value   = "";
+    elMoviePlayUrl().value  = "";
+    elMovieDownload().value = "";
+    elMovieDesc().value     = "";
+    // FIXED: clear error message on reset
+    elFormMsg().innerText = "";
+}
+
+function deleteMovie(id) {
+    if (confirm("Delete this movie? This cannot be undone."))
+        db.ref("movies/" + id).remove();
+}
+
+function filterMovies(q) {
+    q = q.toLowerCase();
+    renderMovies(movies.filter(m =>
+        m.title.toLowerCase().includes(q) ||
+        m.genre.toLowerCase().includes(q)
+    ));
+}
+
+// ================= REPORTS =================
+function loadReports() {
+    db.ref("reports").on("value", snap => {
+        const container = document.getElementById("reportsList");
+        const rows = [];
+        snap.forEach(s => {
+            const r = s.val();
+            rows.push(`
+                <div class="report">
+                    <b>${r.movieTitle || "Unknown"}</b><br>
+                    Movie ID: ${r.movieId}<br>
+                    User: ${r.userId || "Anonymous"}<br>
+                    <button class="primary" style="margin-top:8px"
+                        data-report-id="${s.key}">Resolve</button>
+                </div>
+            `);
+        });
+        container.innerHTML = rows.length
+            ? rows.join("")
+            : "<p style='color:var(--text2)'>No reports.</p>";
+    });
+}
+
+// FIXED: event delegation for resolve buttons
+document.getElementById("reportsList").addEventListener("click", e => {
+    const btn = e.target.closest("button[data-report-id]");
+    if (!btn) return;
+    db.ref("reports/" + btn.dataset.reportId).remove();
+});
+
+// ================= THEME =================
+function toggleTheme() {
+    document.body.classList.toggle("light");
+    localStorage.setItem("theme",
+        document.body.classList.contains("light") ? "light" : "dark");
+}
+if (localStorage.getItem("theme") === "light")
+    document.body.classList.add("light");
+</script>
+</body>
+  </html>
